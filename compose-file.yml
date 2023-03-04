@@ -1,0 +1,42 @@
+version: "3"
+services:
+  dvwa:
+    image: vulnerables/web-dvwa
+    container_name: dvwa
+    volumes:
+      - ./:/usr/app
+    ports:
+      - 80:80
+    restart: unless-stopped
+
+  heartbleed:
+    image: vulnerables/cve-2014-0160
+    container_name: heartbleed
+    volumes:
+      - ./:/usr/app
+    ports:
+      -8080:443
+    restart: unless-stopped
+
+  metasploitable:
+    image: vulnerables/metasploit-vulnerability-emulator
+    container_name: metasploitable
+    volumes:
+      - ./:/usr/app
+    ports: 
+     - 20:20
+     - 21:21
+     - 80:80
+     - 443:443
+     - 4848:4848
+     - 6000:6000
+     - 6060:6060
+    restart: unless:stopped
+
+ # name:
+ #   image:
+ #   container_name:
+ #   volumes:
+ #   ports:
+ #   restart:
+     
