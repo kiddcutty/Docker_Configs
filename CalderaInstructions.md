@@ -68,6 +68,6 @@ sudo docker ps -a
 > To change their passwords modify the appropriate lines in default.yml  
 > The default password for all is 'admin'
 
-[^1]: The build file must be named Dockerfile or the build will fail.
+[^1]: The build file must be named Dockerfile or the build will fail.  The build command must also be run in the same directory as the Dockerfile.
 
 
