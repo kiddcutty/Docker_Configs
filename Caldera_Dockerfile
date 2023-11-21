@@ -1,0 +1,125 @@
+FROM ubuntu:23.04
+SHELL ["/bin/bash", "-c"]
+
+ARG TZ="UTC"
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
+
+WORKDIR /usr/src/app
+
+
+
+RUN apt-get update && \
+    apt-get -y install python3 python3-pip python3-venv git curl golang-go sed
+
+# Clone the mitre/caldera repo to the WORKDIR
+RUN git clone https://github.com/mitre/caldera.git --recursive /usr/src/app
+
+#WIN_BUILD is used to enable windows build in sandcat plugin
+ARG WIN_BUILD=false
+RUN if [ "$WIN_BUILD" = "true" ] ; then apt-get -y install mingw-w64; fi
+
+# Set up python virtualenv
+ENV VIRTUAL_ENV=/opt/venv/caldera
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Install pip requirements
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Set up config file and disable atomic by default
+RUN python3 -c "import app; import app.utility.config_generator; app.utility.config_generator.ensure_local_config();"; \
+    sed -i '/\- atomic/d' conf/local.yml;
+
+# Compile default sandcat agent binaries, which will download basic golang dependencies.
+
+# Install Go dependencies
+WORKDIR /usr/src/app/plugins/sandcat/gocat
+RUN go mod tidy && go mod download
+
+WORKDIR /usr/src/app/plugins/sandcat
+
+# Fix line ending error that can be caused by cloning the project in a Windows environment
+RUN if [ "$WIN_BUILD" = "true" ] ; then cp ./update-agents.sh ./update-agents-copy.sh; fi
+RUN if [ "$WIN_BUILD" = "true" ] ; then tr -d '\15\32' < ./update-agents-copy.sh > ./update-agents.sh; fi
+RUN if [ "$WIN_BUILD" = "true" ] ; then rm ./update-agents-copy.sh; fi
+
+RUN ./update-agents.sh
+
+# Check if we can compile the sandcat extensions, which will download golang dependencies for agent extensions
+RUN mkdir /tmp/gocatextensionstest
+
+RUN cp -R ./gocat /tmp/gocatextensionstest/gocat
+RUN cp -R ./gocat-extensions/* /tmp/gocatextensionstest/gocat/
+
+RUN cp ./update-agents.sh /tmp/gocatextensionstest/update-agents.sh
+
+WORKDIR /tmp/gocatextensionstest
+
+RUN mkdir /tmp/gocatextensionstest/payloads
+
+RUN ./update-agents.sh
+
+# Clone atomic red team repo for the atomic plugin
+RUN if [ ! -d "/usr/src/app/plugins/atomic/data/atomic-red-team" ]; then   \
+    git clone --depth 1 https://github.com/redcanaryco/atomic-red-team.git \
+        /usr/src/app/plugins/atomic/data/atomic-red-team;                  \
+fi
+
+WORKDIR /usr/src/app/plugins/emu
+
+# If emu is enabled, complete necessary installation steps
+RUN if [ $(grep -c "\- emu" ../../conf/local.yml)  ]; then \
+    apt-get -y install zlib1g unzip;                \
+    pip3 install -r requirements.txt;               \
+    ./download_payloads.sh;                         \
+fi
+
+# Add BACnet plugin
+RUN if [ ! -d "/usr/src/app/plugins/modbus" ]; then \
+        mkdir -p /usr/src/app/plugins/bacnet; \
+    fi; \
+    git clone https://github.com/mitre/bacnet.git /usr/src/app/plugins/bacnet
+
+# Add DNP3 plugin
+RUN if [ ! -d "/usr/src/app/plugins/dnp3" ]; then \
+        mkdir -p /usr/src/app/plugins/dnp3; \
+    fi; \
+    git clone https://github.com/mitre/dnp3.git /usr/src/app/plugins/dnp3
+
+# Add Modbus plugin
+RUN if [ ! -d "/usr/src/app/plugins/modbus" ]; then \
+        mkdir -p /usr/src/app/plugins/modbus; \
+    fi; \
+    git clone https://github.com/mitre/modbus /usr/src/app/plugins/modbus
+
+
+WORKDIR /usr/src/app
+
+# Default HTTP port for web interface and agent beacons over HTTP
+EXPOSE 8888
+
+# Default HTTPS port for web interface and agent beacons over HTTPS (requires SSL plugin to be enabled)
+EXPOSE 8443
+
+# TCP and UDP contact ports
+EXPOSE 7010
+EXPOSE 7011/udp
+
+# Websocket contact port
+EXPOSE 7012
+
+# Default port to listen for DNS requests for DNS tunneling C2 channel
+EXPOSE 8853
+
+# Default port to listen for SSH tunneling requests
+EXPOSE 8022
+
+# Default FTP port for FTP C2 channel
+EXPOSE 2222
+
+ARG OT_BUILD=false
+RUN if [ "$OT_BUILD" = "true" ] ; then \
+    sed -i '/^plugins:/a\- bacnet\n- dnp3\n- modbus' /usr/src/app/conf/default.yml; fi
+
+ENTRYPOINT ["python3", "server.py", "--insecure"]
