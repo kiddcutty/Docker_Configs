@@ -39,7 +39,7 @@ docker build --no-cache --build-arg WIN_BUILD=true --build-arg OT_BUILD=true -t 
 sudo docker run -d --name calderaserver -p 8888:8888 caldera:latest
 ```
 
-To access Caldera once running, open a browser and navigate to [HOST_IP]:8888
+To access Caldera once running, open a browser and navigate to ```[HOST_IP]:8888```
 
 ### Troubleshooting
 Check that image was created
