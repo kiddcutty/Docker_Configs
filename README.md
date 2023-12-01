@@ -13,10 +13,10 @@ sudo systemctl status docker
 
 ##### Execute Docker w/o Sudo
 ```
-sudo usermod -aG docker ${USER}
-su - ${USER}
+sudo usermod -aG docker [USERNAME]
+su - [USERNAME]
 groups
-sudo usermod -aG docker username
+sudo usermod -aG docker [USERNAME]
 ```
 
 ##### scp Dockerfile to machine
