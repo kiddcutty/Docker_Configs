@@ -16,7 +16,6 @@ sudo systemctl status docker
 sudo usermod -aG docker [USERNAME]
 su - [USERNAME]
 groups
-sudo usermod -aG docker [USERNAME]
 ```
 
 ##### scp Dockerfile to machine
